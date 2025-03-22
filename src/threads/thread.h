@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -17,12 +18,14 @@ enum thread_status
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
-#define TID_ERROR ((tid_t) -1) /* Error value for tid_t. */
+#define TID_ERROR ((tid_t) - 1) /* Error value for tid_t. */
 
 /* Thread priorities. */
 #define PRI_MIN 0      /* Lowest priority. */
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
+
+#define MAX_FILES 32
 
 /* A kernel thread or user process.
 
@@ -100,8 +103,26 @@ struct thread
   uint32_t *pagedir; /* Page directory. */
 #endif
 
+  struct thread *parent;     /* Child thread */
+  struct list children;      /* List of struct child */
+  struct child *child_info;  /* Semaphore for wait/exit synchronization. */
+
+  struct file *files[MAX_FILES]; /* Array of available FDs */
+  struct file *executable;        /* Executable file */
+
+
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */
+};
+
+// Structure to hold child process information.
+struct child
+{
+  struct list_elem child_elem; /* For the parent's list of children. */
+  int exit_status;             /* Exit status of the child. */
+  tid_t tid;                   /* Child's TID */
+  struct semaphore wait_sema;  /* Semaphore for wait/exit synchronization. */
+  bool waited_on;              /* Has the parent waited on this child? */
 };
 
 /* If false (default), use round-robin scheduler.
@@ -139,5 +160,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+struct thread *get_thread_from_tid (tid_t tid);
+void set_parent_child_thread (struct thread *t_p, tid_t child_tid);
 
 #endif /* threads/thread.h */
