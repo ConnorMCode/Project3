@@ -321,9 +321,7 @@ void thread_set_priority (int new_priority)
 int thread_get_priority (void) { return thread_current ()->priority; }
 
 /* Sets the current thread's nice value to NICE. */
-void thread_set_nice (int nice UNUSED)
-{ /* Not yet implemented. */
-}
+void thread_set_nice (int nice UNUSED) { /* Not yet implemented. */ }
 
 /* Returns the current thread's nice value. */
 int thread_get_nice (void)
@@ -344,6 +342,43 @@ int thread_get_recent_cpu (void)
 {
   /* Not yet implemented. */
   return 0;
+}
+
+/* Iterate through all_list to find the thread with tid. Return the tid_t
+ * received. Return NULL if thread not found */
+struct thread *get_thread_from_tid (tid_t tid)
+{
+  enum intr_level old_level = intr_disable ();
+
+  // Finding the child thread
+  struct thread *t = NULL;
+  for (struct list_elem *e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+    {
+      t = list_entry (e, struct thread, allelem);
+      if (t->tid == tid)
+        break;
+    }
+
+  intr_set_level (old_level); // Restore interrupts
+
+  return t;
+}
+
+/* Set child thread's parent, and parent thread's list of child threads */
+void set_parent_child_thread (struct thread *t_p, tid_t child_tid)
+{
+  struct thread *child = get_thread_from_tid (child_tid);
+  if (child == NULL)
+    return;
+
+  child->parent = t_p;
+  struct child *child_struct = palloc_get_page (PAL_ZERO);
+  child_struct->tid = child_tid;
+  child_struct->waited_on = false;
+  child->child_info = child_struct;
+  sema_init (&child_struct->wait_sema, 0);
+  list_push_back (&t_p->children, &child_struct->child_elem);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -428,6 +463,14 @@ static void init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
+  // Initializing for user process
+  list_init (&t->children);
+
+  // Initializing file descriptors.
+  for (int i = 0; i < MAX_FILES; i++)
+    t->files[i] = NULL;
+  t->executable = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
