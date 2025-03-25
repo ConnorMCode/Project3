@@ -5,10 +5,6 @@
 
 void frame_table_init(void);
 
-void *frame_alloc(enum palloc_flags p_flags, void *v_address);
+void *frame_alloc(enum palloc_flags p_flags);
 
 void frame_free(void *k_address);
-
-void *frame_evict(void);
-
-void frame_access(void *k_address);

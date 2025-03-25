@@ -36,6 +36,7 @@
 #include "devices/ide.h"
 #include "filesys/filesys.h"
 #include "filesys/fsutil.h"
+#include "vm/frame.h"
 #endif
 
 /* Page directory with kernel mappings only. */
@@ -93,6 +94,7 @@ int main (void)
 
   /* Initialize memory system. */
   palloc_init (user_page_limit);
+  frame_table_init();
   malloc_init ();
   paging_init ();
 
