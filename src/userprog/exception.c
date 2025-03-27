@@ -1,12 +1,15 @@
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
+#include "vm/frame.h"
+#include "vm/page.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -144,6 +147,8 @@ static void page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  struct thread *t = thread_current();
+
   if (user)
     {
       if (fault_addr == NULL || !is_user_vaddr (fault_addr) ||
@@ -151,16 +156,31 @@ static void page_fault (struct intr_frame *f)
         {
           exit (-1);
         }
+
+      struct page_entry *page = page_lookup(t, pg_round_down(fault_addr));
+      if(page == NULL){
+	exit(-1);
+      }
+
+      void *frame = frame_alloc(PAL_USER);
+      if(frame == NULL){
+	exit(-1);
+      }
+
+      if(page->type == PAGE_FILE){
+	file_seek(page->file, page->file_offset);
+	if(file_read(page->file, frame, page->read_bytes) != (int)page->read_bytes){
+	  frame_free(frame);
+	  exit(-1);
+	}
+	memset((char *)frame + page->read_bytes, 0, page->zero_bytes);
+      } else if(page->type == PAGE_ZERO){
+	memset(frame, 0, PGSIZE);
+      }
+
+      if(!pagedir_set_page(t->pagedir, page->upage, frame, page->writable)){
+	frame_free(frame);
+	exit(-1);
+      }
     }
-
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
-  printf ("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading", user ? "user" : "kernel");
-
-  printf ("There is no crying in Pintos!\n");
-
-  kill (f);
 }

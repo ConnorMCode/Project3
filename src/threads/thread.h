@@ -110,6 +110,7 @@ struct thread
   struct file *files[MAX_FILES]; /* Array of available FDs */
   struct file *executable;        /* Executable file */
 
+  struct list page_table;
 
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */

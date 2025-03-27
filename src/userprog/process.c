@@ -20,6 +20,7 @@
 #include "threads/synch.h"
 #include "userprog/syscall.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (struct cmdline_args *args, void (**eip) (void), void **esp);
@@ -489,6 +490,8 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+  struct thread *t = thread_current();
+  
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
@@ -499,28 +502,26 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = frame_alloc(PAL_USER);
-      if (kpage == NULL)
+      struct page_entry *page = palloc_get_page(PAL_ZERO);
+      if (!page)
         return false;
 
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          frame_free (kpage);
-          return false;
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
+      page->upage = upage;
+      page->type = (page_read_bytes > 0) ? PAGE_FILE : PAGE_ZERO;
+      page->file = file;
+      page->file_offset = ofs;
+      page->read_bytes = page_read_bytes;
+      page->zero_bytes = page_zero_bytes;
+      page->writable = writable;
 
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable))
-        {
-          palloc_free_page (kpage);
-          return false;
-        }
-
-      /* Advance. */
+      if(!page_insert(t, page)){
+	palloc_free_page(page);
+	return false;
+      }
+      
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
+      ofs += page_read_bytes;
       upage += PGSIZE;
     }
   return true;
