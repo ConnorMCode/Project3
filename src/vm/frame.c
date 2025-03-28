@@ -37,6 +37,7 @@ void *frame_alloc(enum palloc_flags p_flags){
   void *k_address = palloc_get_page(p_flags);
   if(k_address == NULL){
     lock_release(&frame_lock);
+    return NULL;
   }
 
   struct frame_entry *frame = malloc(sizeof(struct frame_entry));

@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "vm/page.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -466,6 +467,8 @@ static void init_thread (struct thread *t, const char *name, int priority)
 
   // Initializing for user process
   list_init (&t->children);
+
+  page_table_init(t);
 
   // Initializing file descriptors.
   for (int i = 0; i < MAX_FILES; i++)
