@@ -406,7 +406,7 @@ bool load (struct cmdline_args *args, void (**eip) (void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  /*file_close (file);
   if (success)
     {
       file_deny_write (file);
@@ -416,7 +416,7 @@ done:
     {
       file_close (file);
       t->executable = NULL;
-    }
+      }*/
   return success;
 }
 
@@ -491,7 +491,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   struct thread *t = thread_current();
-  
+ 
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
@@ -503,9 +503,10 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Get a page of memory. */
       struct page_entry *page = palloc_get_page(PAL_ZERO);
-      if (!page)
+      if (!page){
         return false;
-
+      }
+	
       page->upage = upage;
       page->type = (page_read_bytes > 0) ? PAGE_FILE : PAGE_ZERO;
       page->file = file;
@@ -513,17 +514,18 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
       page->read_bytes = page_read_bytes;
       page->zero_bytes = page_zero_bytes;
       page->writable = writable;
-
+      
       if(!page_insert(t, page)){
-	palloc_free_page(page);
+	printf("Error: Failed to insert page into table: upage=%p\n", upage);
+ 	palloc_free_page(page);
 	return false;
       }
-      
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       ofs += page_read_bytes;
       upage += PGSIZE;
     }
+
   return true;
 }
 
@@ -550,6 +552,7 @@ static bool setup_stack (void **esp, const struct cmdline_args *args)
   uint8_t *tos = PHYS_BASE;   // Top of stack
   char *args_ptr[args->argc]; // pointers to arguments in the stack
   size_t args_len;
+  
   for (int i = args->argc - 1; i >= 0; i--)
     {
       args_len = strlen (args->argv[i]) + 1; // + 1 for null termination
@@ -558,10 +561,10 @@ static bool setup_stack (void **esp, const struct cmdline_args *args)
       args_ptr[i] = (char *) tos;
     }
   tos = (uint8_t *) ((uintptr_t) tos & ~3); // Adding 0 for word-align
-
+  
   tos -= sizeof (char *); // Adding null pointer sentinel
   *(char **) tos = NULL;
-
+  
   for (int i = args->argc - 1; i >= 0; i--) // Storing argument addresses
     {
       tos -= sizeof (char *);

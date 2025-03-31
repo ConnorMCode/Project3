@@ -151,16 +151,21 @@ static void page_fault (struct intr_frame *f)
 
   if (user)
     {
-      if (fault_addr == NULL || !is_user_vaddr (fault_addr) ||
-          pagedir_get_page (thread_current ()->pagedir, fault_addr) == NULL)
-        {
-          exit (-1);
-        }
+      
+      if (fault_addr == NULL || !is_user_vaddr(fault_addr))
+	{
+	  exit(-1);
+	}
+
+      if (pagedir_get_page(thread_current()->pagedir, fault_addr) != NULL) {
+	return; // Simply return if the page is already mapped (this shouldn't be the case normally).
+      }
 
       struct page_entry *page = page_lookup(t, pg_round_down(fault_addr));
       if(page == NULL){
 	exit(-1);
       }
+      
 
       void *frame = frame_alloc(PAL_USER);
       if(frame == NULL){
@@ -168,8 +173,16 @@ static void page_fault (struct intr_frame *f)
       }
 
       if(page->type == PAGE_FILE){
+
+	if (page->file == NULL) {
+	  printf("Error: page->file is NULL\n");
+	  exit(-1);
+	}
+ 	
 	file_seek(page->file, page->file_offset);
+
 	if(file_read(page->file, frame, page->read_bytes) != (int)page->read_bytes){
+	  printf("Error reading from file: expected to read %u bytes, but only read %d bytes\n", page->read_bytes, file_read(page->file, frame, page->read_bytes));
 	  frame_free(frame);
 	  exit(-1);
 	}
