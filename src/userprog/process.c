@@ -535,19 +535,35 @@ static bool setup_stack (void **esp, const struct cmdline_args *args)
 {
   uint8_t *kpage;
   bool success = false;
+  void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+  kpage = frame_alloc (PAL_USER | PAL_ZERO);
 
   if (kpage == NULL)
     return success;
 
-  success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+  success = install_page (upage, kpage, true);
   if (!success)
     {
-      palloc_free_page (kpage);
+      frame_free (kpage);
       return success;
     }
 
+  struct page_entry *stack_page = palloc_get_page(PAL_ZERO);
+  if (!stack_page){
+    return false;
+  }
+  
+  stack_page->upage = upage;
+  stack_page->type = PAGE_STACK;
+  stack_page->writable = true;
+  stack_page->frame = kpage;
+
+  if (!page_insert(thread_current(), stack_page)){
+    frame_free(kpage);
+    return false;
+  }
+  
   /* Pushing arguments to stack */
   uint8_t *tos = PHYS_BASE;   // Top of stack
   char *args_ptr[args->argc]; // pointers to arguments in the stack

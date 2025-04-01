@@ -4,11 +4,13 @@
 
 enum page_type {
   PAGE_FILE,
-  PAGE_ZERO
+  PAGE_ZERO,
+  PAGE_STACK
 };
 
 struct page_entry {
   void *upage;
+  void *frame;
   enum page_type type;
   struct file *file;
   off_t file_offset;

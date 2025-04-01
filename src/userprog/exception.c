@@ -161,6 +161,41 @@ static void page_fault (struct intr_frame *f)
 	return; // Simply return if the page is already mapped (this shouldn't be the case normally).
       }
 
+      //Roughly check if it seems like a stack access
+      uint8_t *esp = (uint8_t *)f->esp;
+      void *page_addr = pg_round_down(fault_addr);
+      size_t max_stack_size = 8 * 1024 * 1024;
+
+      if ((uint8_t *)fault_addr >= esp - 32 && fault_addr < PHYS_BASE){
+	if ((uintptr_t)((uint8_t *)PHYS_BASE - (uint8_t *)page_addr) > max_stack_size){
+	  exit(-1);
+	}
+
+	void *frame = frame_alloc(PAL_USER | PAL_ZERO);
+	if (frame == NULL){
+	  exit(-1);
+	}
+
+	if (!pagedir_set_page(t->pagedir, page_addr, frame, true)){
+	  frame_free(frame);
+	  exit(-1);
+	}
+
+	struct page_entry *stack_page = palloc_get_page(PAL_ZERO);
+	if (stack_page == NULL){
+	  frame_free(frame);
+	  exit(-1);
+	}
+
+	stack_page->upage = page_addr;
+	stack_page->frame = frame;
+	stack_page->type = PAGE_STACK;
+	stack_page->writable = true;
+
+	page_insert(t, stack_page);
+	return;
+      }
+
       struct page_entry *page = page_lookup(t, pg_round_down(fault_addr));
       if(page == NULL){
 	exit(-1);
