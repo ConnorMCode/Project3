@@ -502,24 +502,17 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      struct page_entry *page = palloc_get_page(PAL_ZERO);
-      if (!page){
+      struct page_entry *p = page_allocate(upage, writable);
+      if (!p){
         return false;
       }
 	
-      page->upage = upage;
-      page->type = (page_read_bytes > 0) ? PAGE_FILE : PAGE_ZERO;
-      page->file = file;
-      page->file_offset = ofs;
-      page->read_bytes = page_read_bytes;
-      page->zero_bytes = page_zero_bytes;
-      page->writable = writable;
-      
-      if(!page_insert(t, page)){
-	printf("Error: Failed to insert page into table: upage=%p\n", upage);
- 	palloc_free_page(page);
-	return false;
+      if(page_read_bytes > 0){
+	p->file = file;
+	p->file_offset = ofs;
+	p->read_bytes = page_read_bytes;
       }
+
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       ofs += page_read_bytes;
@@ -537,32 +530,22 @@ static bool setup_stack (void **esp, const struct cmdline_args *args)
   bool success = false;
   void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
 
-  kpage = frame_alloc (PAL_USER | PAL_ZERO);
-
-  if (kpage == NULL)
+  struct page_entry *stack_page = page_allocate(upage, true);
+  if (stack_page == NULL)
     return success;
 
+  kpage = frame_alloc(stack_page);
   success = install_page (upage, kpage, true);
   if (!success)
     {
-      frame_free (kpage);
+      page_deallocate(upage);
       return success;
     }
-
-  struct page_entry *stack_page = palloc_get_page(PAL_ZERO);
-  if (!stack_page){
-    return false;
-  }
   
   stack_page->upage = upage;
   stack_page->type = PAGE_STACK;
   stack_page->writable = true;
   stack_page->frame = kpage;
-
-  if (!page_insert(thread_current(), stack_page)){
-    frame_free(kpage);
-    return false;
-  }
   
   /* Pushing arguments to stack */
   uint8_t *tos = PHYS_BASE;   // Top of stack

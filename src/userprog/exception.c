@@ -10,6 +10,7 @@
 #include "userprog/syscall.h"
 #include "vm/frame.h"
 #include "vm/page.h"
+#include "vm/swap.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -147,88 +148,18 @@ static void page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  struct thread *t = thread_current();
-
-  if (user)
-    {
-      
-      if (fault_addr == NULL || !is_user_vaddr(fault_addr))
-	{
-	  exit(-1);
-	}
-
-      if (pagedir_get_page(thread_current()->pagedir, fault_addr) != NULL) {
-	return; // Simply return if the page is already mapped (this shouldn't be the case normally).
-      }
-
-      //Roughly check if it seems like a stack access
-      uint8_t *esp = (uint8_t *)f->esp;
-      void *page_addr = pg_round_down(fault_addr);
-      size_t max_stack_size = 8 * 1024 * 1024;
-
-      if ((uint8_t *)fault_addr >= esp - 32 && fault_addr < PHYS_BASE){
-	if ((uintptr_t)((uint8_t *)PHYS_BASE - (uint8_t *)page_addr) > max_stack_size){
-	  exit(-1);
-	}
-
-	void *frame = frame_alloc(PAL_USER | PAL_ZERO);
-	if (frame == NULL){
-	  exit(-1);
-	}
-
-	if (!pagedir_set_page(t->pagedir, page_addr, frame, true)){
-	  frame_free(frame);
-	  exit(-1);
-	}
-
-	struct page_entry *stack_page = palloc_get_page(PAL_ZERO);
-	if (stack_page == NULL){
-	  frame_free(frame);
-	  exit(-1);
-	}
-
-	stack_page->upage = page_addr;
-	stack_page->frame = frame;
-	stack_page->type = PAGE_STACK;
-	stack_page->writable = true;
-
-	page_insert(t, stack_page);
-	return;
-      }
-
-      struct page_entry *page = page_lookup(t, pg_round_down(fault_addr));
-      if(page == NULL){
-	exit(-1);
-      }
-      
-
-      void *frame = frame_alloc(PAL_USER);
-      if(frame == NULL){
-	exit(-1);
-      }
-
-      if(page->type == PAGE_FILE){
-
-	if (page->file == NULL) {
-	  printf("Error: page->file is NULL\n");
-	  exit(-1);
-	}
- 	
-	file_seek(page->file, page->file_offset);
-
-	if(file_read(page->file, frame, page->read_bytes) != (int)page->read_bytes){
-	  printf("Error reading from file: expected to read %u bytes, but only read %d bytes\n", page->read_bytes, file_read(page->file, frame, page->read_bytes));
-	  frame_free(frame);
-	  exit(-1);
-	}
-	memset((char *)frame + page->read_bytes, 0, page->zero_bytes);
-      } else if(page->type == PAGE_ZERO){
-	memset(frame, 0, PGSIZE);
-      }
-
-      if(!pagedir_set_page(t->pagedir, page->upage, frame, page->writable)){
-	frame_free(frame);
-	exit(-1);
-      }
+  if (user && not_present){
+    
+    if(!page_in (fault_addr)){
+      thread_exit();
     }
+    return;
+  }
+
+  printf ("Page fault at %p: %s error %s page in %s context.\n",
+	  fault_addr,
+	  not_present ? "not present" : "rights violation",
+	  write ? "writing" : "reading",
+	  user ? "user" : "kernel");
+  kill (f);
 }
