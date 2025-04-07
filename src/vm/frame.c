@@ -13,12 +13,27 @@
 #include "vm/swap.h"
 #include "lib/kernel/list.h"
 
+#define MAX_FRAMES 1024
+
+static struct frame_entry frame_table[MAX_FRAMES];
+static size_t frame_count = 0;
+
 static struct list frame_list;
 static struct lock frames_lock;
 
 void frame_table_init(void){
   list_init(&frame_list);
   lock_init(&frames_lock);
+
+  void *base;
+  while ((base = palloc_get_page(PAL_USER)) != NULL && frame_count < MAX_FRAMES) {
+    struct frame_entry *f = &frame_table[frame_count++];
+    f->base = base;
+    f->page = NULL;
+    f->owner = NULL;
+    lock_init(&f->lock);
+    list_push_back(&frame_list, &f->frame_elem);
+  }
 }
 
 struct frame_entry *frame_alloc(struct page_entry *page){
@@ -33,9 +48,9 @@ struct frame_entry *frame_alloc(struct page_entry *page){
       if(!lock_try_acquire(&f_entry->lock)){
 	continue;
       }
-
-      if(f_entry->k_address == NULL){
-	f_entry->k_address = page;
+      
+      if(f_entry->page == NULL){
+	f_entry->page = page;
 	lock_release(&f_entry->lock);
 	lock_release(&frames_lock);
 	return f_entry;
@@ -50,26 +65,25 @@ struct frame_entry *frame_alloc(struct page_entry *page){
 	continue;
       }
 
-      if(f_entry->k_address == NULL){
-	f_entry->k_address = page;
-	lock_release(&f_entry->lock);
+      if(f_entry->page == NULL){
+	f_entry->page = page;
 	lock_release(&frames_lock);
 	return f_entry;
       }
 
-      if(page_relevant(f_entry->k_address)){
+      if(page_relevant(f_entry->page)){
 	lock_release(&f_entry->lock);
 	continue;
       }
 
-      if(!page_out(f_entry->k_address)){
+      if(!page_out(f_entry->page)){
 	lock_release(&f_entry->lock);
 	lock_release(&frames_lock);
 	return NULL;
       }
 
-      f_entry->k_address = page;
-      lock_release(&f_entry->lock);
+      f_entry->page = page;
+      page->frame = f_entry;
       lock_release(&frames_lock);
       return f_entry;
     }

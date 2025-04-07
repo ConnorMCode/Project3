@@ -534,7 +534,13 @@ static bool setup_stack (void **esp, const struct cmdline_args *args)
   if (stack_page == NULL)
     return success;
 
-  kpage = frame_alloc(stack_page);
+  struct frame_entry *f = frame_alloc(stack_page);
+  if(f == NULL){
+    return success;
+  }
+
+  kpage = f->base;
+  
   success = install_page (upage, kpage, true);
   if (!success)
     {

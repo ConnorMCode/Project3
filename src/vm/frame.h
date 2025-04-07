@@ -8,7 +8,6 @@
 #include "vm/page.h"
 
 struct frame_entry {
-  void *k_address;
   void *base;
   struct page_entry *page;
   struct lock lock;

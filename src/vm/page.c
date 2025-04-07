@@ -90,13 +90,13 @@ bool page_in(void *fault_addr){
       frame_free(frame);
       return false;
     }
-    memset((uint8_t *)frame + p->read_bytes, 0, p->zero_bytes);
+    memset((uint8_t *)frame->base + p->read_bytes, 0, p->zero_bytes);
   } else {
-    memset(frame, 0, PGSIZE);
+    memset(frame->base, 0, PGSIZE);
   }
 
   // Install the page into the page directory
-  if (!pagedir_set_page(t->pagedir, upage, frame, p->writable)) {
+  if (!pagedir_set_page(t->pagedir, upage, frame->base, p->writable)) {
     printf("pagedir_set_page failed for %p\n", upage);
     frame_free(frame);
     return false;
