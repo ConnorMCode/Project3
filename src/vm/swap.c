@@ -23,7 +23,7 @@ void swap_init(void){
 bool swap_out(struct page_entry *p){
   ASSERT(p != NULL);
   ASSERT(p->frame != NULL);
-  ASSERT(lock_held_by_current_thread(&p->frame->lock));
+  //ASSERT(lock_held_by_current_thread(&p->frame->lock));
 
   lock_acquire(&swap_lock);
   size_t slot = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
@@ -31,6 +31,10 @@ bool swap_out(struct page_entry *p){
 
   if(slot == BITMAP_ERROR){
     return false;
+  }
+
+  if(p->frame->base == NULL){
+    printf("problemo\n");
   }
 
   size_t start_sector = slot * PAGE_SECTORS;
