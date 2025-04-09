@@ -33,10 +33,6 @@ bool swap_out(struct page_entry *p){
     return false;
   }
 
-  if(p->frame->base == NULL){
-    printf("problemo\n");
-  }
-
   size_t start_sector = slot * PAGE_SECTORS;
   for(size_t i = 0; i < PAGE_SECTORS; i++){
     block_write(swap_block, start_sector + i, (uint8_t *)p->frame->base + i * BLOCK_SECTOR_SIZE);
@@ -52,7 +48,7 @@ void swap_in(struct page_entry *p){
   size_t i;
 
   ASSERT(p->frame != NULL);
-  ASSERT(lock_held_by_current_thread (&p->frame->lock));
+  //ASSERT(lock_held_by_current_thread (&p->frame->lock));
   ASSERT(p->in_swap);
   ASSERT(p->swap_index != (size_t) - 1);
 

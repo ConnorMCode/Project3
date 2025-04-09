@@ -14,38 +14,26 @@ void page_table_init(struct thread *t){
   list_init(&t->page_table);
 }
 
-struct page_entry *page_from_frame(void *kaddr){
+static struct page_entry *page_lookup(const void *addr){
   struct list_elem *e;
   struct thread *t = thread_current();
+  
   for(e = list_begin(&t->page_table); e != list_end(&t->page_table); e = list_next(e)){
     struct page_entry *entry = list_entry(e, struct page_entry, page_elem);
-    if (entry->frame == kaddr){
+    if (entry->upage == pg_round_down(addr)){
       return entry;
     }
   }
 
-  if (kaddr < PHYS_BASE) {
-    void *upage = pg_round_down(kaddr);
+  if (addr < PHYS_BASE) {
+    void *upage = pg_round_down(addr);
 
     uintptr_t phys_base = (uintptr_t)PHYS_BASE;
     uintptr_t stack_max = (uintptr_t)STACK_MAX;
     uintptr_t upage_addr = (uintptr_t)upage;
-    uintptr_t kaddr_addr = (uintptr_t)kaddr;
 
-    if (upage_addr > phys_base - stack_max && kaddr_addr >= phys_base - stack_max) {
+    if ((upage_addr > phys_base - stack_max) && ((uint8_t *)thread_current()->user_esp - 32 < addr)) {
       return page_allocate(upage, true);
-    }
-  }
-
-  return NULL;
-}
-
-struct page_entry *page_lookup(struct thread *t, const void *upage){
-  struct list_elem *e;
-  for(e = list_begin(&t->page_table); e != list_end(&t->page_table); e = list_next(e)){
-    struct page_entry *entry = list_entry(e, struct page_entry, page_elem);
-    if (entry->upage == upage){
-      return entry;
     }
   }
 
@@ -57,14 +45,7 @@ bool page_in(void *fault_addr){
   void *upage = pg_round_down(fault_addr);
 
   // Find the page in the thread's page list
-  struct page_entry *p = NULL;
-  for (struct list_elem *e = list_begin(&t->page_table); e != list_end(&t->page_table); e = list_next(e)) {
-    struct page_entry *entry = list_entry(e, struct page_entry, page_elem);
-    if (entry->upage == upage) {
-      p = entry;
-      break;
-    }
-  }
+  struct page_entry *p = page_lookup(fault_addr);
 
   if (p == NULL) {
     printf("Page for fault address %p not found\n", fault_addr);
@@ -72,8 +53,10 @@ bool page_in(void *fault_addr){
   }
 
   // Allocate a frame
-  struct frame_entry *frame = frame_alloc(p);
-  if (frame == NULL) {
+
+  frame_lock(p);
+  p->frame = frame_alloc(p);
+  if (p->frame == NULL) {
     printf("Failed to allocate frame for page %p\n", upage);
     return false;
   }
@@ -82,33 +65,29 @@ bool page_in(void *fault_addr){
   if (p->in_swap) {
     swap_in(p);
   } else if (p->file != NULL) {
-    file_seek(p->file, p->file_offset);
-    int bytes_read = file_read(p->file, frame->base, p->read_bytes);
-    if (bytes_read != (int)p->read_bytes) {
-      printf("Error reading from file for page %p: expected %zu, got %d\n",
-	     upage, p->read_bytes, bytes_read);
-      frame_free(frame);
-      return false;
-    }
-    memset((uint8_t *)frame->base + p->read_bytes, 0, p->zero_bytes);
+    off_t read_bytes = file_read_at (p->file, p->frame->base, p->read_bytes, p->file_offset);
+    off_t zero_bytes = PGSIZE - read_bytes;
+    memset ((uint8_t *)p->frame->base + read_bytes, 0, zero_bytes);
   } else {
-    memset(frame->base, 0, PGSIZE);
+    memset(p->frame->base, 0, PGSIZE);
   }
 
   // Install the page into the page directory
-  if (!pagedir_set_page(t->pagedir, upage, frame->base, p->writable)) {
+  if (!pagedir_set_page(t->pagedir, p->upage, p->frame->base, p->writable)) {
     printf("pagedir_set_page failed for %p\n", upage);
-    frame_free(frame);
+    frame_unlock(p->frame);
     return false;
   }
 
-  p->frame = frame;
+  frame_unlock (p->frame);
   return true;
 }
 
 bool page_out(struct page_entry *p){
   bool dirty;
   bool ok = false;
+
+  pagedir_clear_page(p->thread->pagedir, (void *) p->upage);
 
   dirty = pagedir_is_dirty(p->thread->pagedir, (const void *) p->upage);
 
@@ -120,7 +99,11 @@ bool page_out(struct page_entry *p){
     ok = swap_out(p);
   }else{
     if(dirty){
-      ok = file_write_at(p->file, (const void *)p->frame->base, p->read_bytes, p->file_offset);
+      if(!p->writable){
+	ok = swap_out(p);
+      }else{
+	ok = file_write_at(p->file, (const void *)p->frame->base, p->read_bytes, p->file_offset);
+      }
     }
   }
 
@@ -163,24 +146,25 @@ struct page_entry *page_allocate(void *uaddr, bool writable){
 }
 
 void page_deallocate(void *uaddr){
-  struct page_entry *p = page_lookup(thread_current(), uaddr);
+  struct page_entry *p = page_lookup(uaddr);
   frame_lock(p);
   if(p->frame){
     struct frame_entry *f = p->frame;
     if(p->file && p->writable){
       page_out(p);
-    frame_free(f);
     }
+    frame_free(f);
   }
   list_remove(&p->page_elem);
   free(p);
 }
 
 bool page_lock(const void *uaddr, bool write){
-  struct page_entry *p = page_lookup(thread_current(), uaddr);
+  struct page_entry *p = page_lookup(uaddr);
   if(p == NULL ||(!p->writable && write)){
     return false;
   }
+
   frame_lock(p);
   if(p->frame == NULL){
     return(page_in(p) && pagedir_set_page(thread_current()->pagedir, p->upage, p->frame->base, p->writable));
@@ -190,7 +174,7 @@ bool page_lock(const void *uaddr, bool write){
 }
 
 void page_unlock(const void *uaddr){
-  struct page_entry *p = page_lookup(thread_current(), uaddr);
+  struct page_entry *p = page_lookup(uaddr);
   ASSERT (p != NULL);
   frame_unlock(p->frame);
 }

@@ -551,7 +551,7 @@ static bool setup_stack (void **esp, const struct cmdline_args *args)
   stack_page->upage = upage;
   stack_page->type = PAGE_STACK;
   stack_page->writable = true;
-  stack_page->frame = kpage;
+  stack_page->frame = f;
   
   /* Pushing arguments to stack */
   uint8_t *tos = PHYS_BASE;   // Top of stack

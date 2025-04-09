@@ -30,8 +30,6 @@ struct page_entry {
 void page_table_init(struct thread *t);
 struct page_entry *page_allocate(void *uaddr, bool writable);
 void page_deallocate(void *uaddr);
-struct page_entry *page_lookup(struct thread *t, const void *upage);
-struct page_entry *page_from_frame(void *kaddr);
 bool page_in(void *fault_addr);
 bool page_out(struct page_entry *p);
 bool page_relevant(struct page_entry *p);

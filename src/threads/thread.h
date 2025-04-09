@@ -111,6 +111,7 @@ struct thread
   struct file *executable;        /* Executable file */
 
   struct list page_table;
+  void *user_esp;
 
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */
