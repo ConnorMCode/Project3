@@ -156,7 +156,7 @@ void page_deallocate(void *uaddr){
     frame_free(f);
   }
   list_remove(&p->page_elem);
-  free(p);
+  palloc_free_page(p);
 }
 
 bool page_lock(const void *uaddr, bool write){
