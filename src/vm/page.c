@@ -14,7 +14,7 @@ void page_table_init(struct thread *t){
   list_init(&t->page_table);
 }
 
-static struct page_entry *page_lookup(const void *addr){
+struct page_entry *page_lookup(const void *addr){
   struct list_elem *e;
   struct thread *t = thread_current();
   
@@ -24,7 +24,7 @@ static struct page_entry *page_lookup(const void *addr){
       return entry;
     }
   }
-
+  
   if (addr < PHYS_BASE) {
     void *upage = pg_round_down(addr);
 
@@ -48,15 +48,26 @@ bool page_in(void *fault_addr){
   struct page_entry *p = page_lookup(fault_addr);
 
   if (p == NULL) {
-    printf("Page for fault address %p not found\n", fault_addr);
     return false;
   }
 
   // Allocate a frame
   p->frame = frame_alloc(p);
   if (p->frame == NULL) {
-    printf("Failed to allocate frame for page %p\n", upage);
     return false;
+  }
+
+  if (p->frame == NULL || p->frame->base == NULL) {
+    printf("Invalid frame for page %p\n", p->upage);
+    frame_unlock(p->frame);
+    return false; // Return false if the frame is not valid
+  }
+
+  // Check if the page is already mapped, and skip the mapping if it is
+  if (pagedir_get_page(t->pagedir, p->upage) != NULL) {
+    // The page is already mapped, no need to map it again
+    frame_unlock(p->frame);
+    return false; // Return false without attempting to map the page
   }
 
   // Load the data into the frame
@@ -69,7 +80,7 @@ bool page_in(void *fault_addr){
   } else {
     memset(p->frame->base, 0, PGSIZE);
   }
-
+  
   // Install the page into the page directory
   if (!pagedir_set_page(t->pagedir, p->upage, p->frame->base, p->writable)) {
     printf("pagedir_set_page failed for %p\n", upage);
@@ -140,6 +151,7 @@ struct page_entry *page_allocate(void *uaddr, bool writable){
 
     list_push_back(&t->page_table, &p->page_elem);
   }
+
   return p;
 }
 

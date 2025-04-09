@@ -13,6 +13,7 @@
 #include "userprog/process.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "vm/page.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -282,10 +283,34 @@ static void sys_read (struct intr_frame *f)
       return;
     }
 
-  if (!is_user_ptr_valid ((uintptr_t) buffer, size))
+  // Ensure buffer is valid and does not wrap around
+  if (buffer == NULL || (uintptr_t) buffer + size < (uintptr_t) buffer)
     {
       exit (-1);
       return;
+    }
+
+  // Touch each page to ensure it's loaded into memory (trigger page fault if needed)
+  uint8_t *buf_ptr = (uint8_t *) buffer;
+  for (unsigned offset = 0; offset < size; offset += PGSIZE)
+    {
+      uint8_t tmp;
+      if (get_user ((uintptr_t)(buf_ptr + offset), 1, &tmp) == -1)
+	{
+	  exit (-1);
+	  return;
+	}
+    }
+
+  if (size > 0)
+    {
+      uint8_t tmp;
+
+      if (get_user((uintptr_t)(buf_ptr + size - 1), 1, &tmp) == -1)
+	{
+	  exit(-1);
+	  return;
+	}
     }
 
   lock_acquire (&file_lock);
@@ -486,8 +511,16 @@ static void sys_symlink (struct intr_frame *f)
  */
 static int get_user (const uintptr_t uaddr, size_t size, void *dest)
 {
-  if (!is_user_ptr_valid (uaddr, size))
+
+  if (!is_user_vaddr((void *)uaddr) || !is_user_vaddr ((void *) (uaddr + size - 1))){
     return -1;
+  }
+  
+  if (!is_user_ptr_valid (uaddr, size)){
+    if(!page_in(uaddr)){
+      return -1;
+    }
+  }
 
   memcpy (dest, (void *) uaddr, size);
   return 0;
@@ -496,19 +529,19 @@ static int get_user (const uintptr_t uaddr, size_t size, void *dest)
 /* Check if the user pointer is in the correct size */
 static bool is_user_ptr_valid (const uintptr_t ptr, size_t size)
 {
+  
   if ((void *) ptr == NULL)
     return false;
 
-  uintptr_t ptr_end = ptr + size - 1;
-
-  // Are pointers in the user virtual address space?
-  if (!is_user_vaddr ((void *) ptr) || !is_user_vaddr ((void *) ptr_end))
-    return false;
-
   // Is mappable to physical address?
-  return pagedir_get_page (thread_current ()->pagedir, (void *) ptr) != NULL &&
-         pagedir_get_page (thread_current ()->pagedir, (void *) ptr_end) !=
-             NULL;
+  void *pagedir_start = pagedir_get_page (thread_current ()->pagedir, (void *) ptr);
+  void *pagedir_end = pagedir_get_page (thread_current ()->pagedir, (void *) (ptr + size - 1));
+
+  if (pagedir_start == NULL || pagedir_end == NULL)
+    {
+      return false;
+    }
+  return true;
 }
 
 /* Clears all open files in a given thread. */

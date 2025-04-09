@@ -27,6 +27,8 @@ struct page_entry {
   struct list_elem page_elem;
 };
 
+struct page_entry *page_lookup(const void *addr);
+
 void page_table_init(struct thread *t);
 struct page_entry *page_allocate(void *uaddr, bool writable);
 void page_deallocate(void *uaddr);
