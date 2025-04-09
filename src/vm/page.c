@@ -87,9 +87,9 @@ bool page_out(struct page_entry *p){
   bool dirty;
   bool ok = false;
 
-  pagedir_clear_page(p->thread->pagedir, (void *) p->upage);
-
   dirty = pagedir_is_dirty(p->thread->pagedir, (const void *) p->upage);
+
+  pagedir_clear_page(p->thread->pagedir, (void *) p->upage);
 
   if(!dirty){
     ok = true;
