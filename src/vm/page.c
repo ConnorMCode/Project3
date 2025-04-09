@@ -32,21 +32,37 @@ struct page_entry *page_lookup(const void *addr){
     uintptr_t stack_max = (uintptr_t)STACK_MAX;
     uintptr_t upage_addr = (uintptr_t)upage;
 
-    if ((upage_addr > phys_base - stack_max) && ((uint8_t *)thread_current()->user_esp - 32 < addr)) {
+    /*if ((upage_addr > phys_base - stack_max) && ((uint8_t *)thread_current()->user_esp - 32 < addr)) {
+      return page_allocate(upage, true);
+      }*/
+
+    if ((uintptr_t)addr >= (uintptr_t)(PHYS_BASE) - STACK_MAX && (uintptr_t)addr < (uintptr_t)PHYS_BASE)  {
+
+      if ((uintptr_t)addr < (uintptr_t)thread_current()->user_esp - (PGSIZE/2)) {
+	exit(-1);
+      }
+      
       return page_allocate(upage, true);
     }
+    
   }
 
   return NULL;
 }
 
-bool page_in(void *fault_addr){
+bool page_in(void *fault_addr, bool write){
   struct thread *t = thread_current();
   void *upage = pg_round_down(fault_addr);
 
   // Find the page in the thread's page list
   struct page_entry *p = page_lookup(fault_addr);
 
+  if(write){
+    if(!p->writable){
+      exit(-1);
+    }
+  }
+  
   if (p == NULL) {
     return false;
   }
@@ -177,7 +193,7 @@ bool page_lock(const void *uaddr, bool write){
 
   frame_lock(p);
   if(p->frame == NULL){
-    return(page_in(p) && pagedir_set_page(thread_current()->pagedir, p->upage, p->frame->base, p->writable));
+    return(page_in(p, write) && pagedir_set_page(thread_current()->pagedir, p->upage, p->frame->base, p->writable));
   }else{
     return true;
   }

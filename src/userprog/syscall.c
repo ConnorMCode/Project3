@@ -517,7 +517,7 @@ static int get_user (const uintptr_t uaddr, size_t size, void *dest)
   }
   
   if (!is_user_ptr_valid (uaddr, size)){
-    if(!page_in(uaddr)){
+    if(!page_in(uaddr, false)){
       return -1;
     }
   }
@@ -547,7 +547,7 @@ static bool is_user_ptr_valid (const uintptr_t ptr, size_t size)
 /* Clears all open files in a given thread. */
 void clear_all_files (struct thread *cur)
 {
-  lock_acquire (&file_lock);
+  //lock_acquire (&file_lock);
 
   // Iterate all files in current thread
   for (int i = 2; i < MAX_FILES; i++)
@@ -558,5 +558,5 @@ void clear_all_files (struct thread *cur)
           cur->files[i] = NULL;
         }
     }
-  lock_release (&file_lock);
+  //lock_release (&file_lock);
 }

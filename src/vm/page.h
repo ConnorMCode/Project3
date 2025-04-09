@@ -2,6 +2,7 @@
 #define VM_PAGE_H
 
 #include <list.h>
+#include <stdbool.h>
 #include "filesys/file.h"
 #include "threads/thread.h"
 #include "vm/frame.h"
@@ -32,7 +33,7 @@ struct page_entry *page_lookup(const void *addr);
 void page_table_init(struct thread *t);
 struct page_entry *page_allocate(void *uaddr, bool writable);
 void page_deallocate(void *uaddr);
-bool page_in(void *fault_addr);
+bool page_in(void *fault_addr, bool write);
 bool page_out(struct page_entry *p);
 bool page_relevant(struct page_entry *p);
 bool page_lock(const void *uaddr, bool write);

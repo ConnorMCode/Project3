@@ -153,16 +153,12 @@ static void page_fault (struct intr_frame *f)
   }
 
   if (user && not_present){
-    if(!page_in (fault_addr)){
+    if(!page_in (fault_addr, write)){
+      exit(-1);
       thread_exit();
     }
     return;
   }
-
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-	  fault_addr,
-	  not_present ? "not present" : "rights violation",
-	  write ? "writing" : "reading",
-	  user ? "user" : "kernel");
+  exit(-1);
   kill (f);
 }
