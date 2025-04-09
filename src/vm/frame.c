@@ -46,9 +46,9 @@ struct frame_entry *frame_alloc(struct page_entry *page){
     for (e = list_begin(&frame_list); e != list_end(&frame_list); e = list_next(e)){
       struct frame_entry *f_entry = list_entry(e, struct frame_entry, frame_elem);
 
-      /*if(!lock_try_acquire (&f_entry->lock)){
+      if(!lock_try_acquire (&f_entry->lock)){
 	continue;
-	}*/
+      }
       
       if(f_entry->page == NULL){
 	f_entry->page = page;
@@ -61,9 +61,9 @@ struct frame_entry *frame_alloc(struct page_entry *page){
     for(e = list_begin(&frame_list); e != list_end(&frame_list); e = list_next(e)){
       struct frame_entry *f_entry = list_entry(e, struct frame_entry, frame_elem);
 
-      /*if(!lock_try_acquire (&f_entry->lock)){
+      if(!lock_try_acquire (&f_entry->lock)){
 	continue;
-	}*/
+      }
       
       if(f_entry->page == NULL){
 	f_entry->page = page;
