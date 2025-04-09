@@ -53,8 +53,6 @@ bool page_in(void *fault_addr){
   }
 
   // Allocate a frame
-
-  frame_lock(p);
   p->frame = frame_alloc(p);
   if (p->frame == NULL) {
     printf("Failed to allocate frame for page %p\n", upage);
