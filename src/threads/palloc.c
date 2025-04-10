@@ -72,17 +72,19 @@ void *palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
   void *pages;
   size_t page_idx;
 
-  if (page_cnt == 0)
+  if (page_cnt == 0){
     return NULL;
-
+  }
+    
   lock_acquire (&pool->lock);
   page_idx = bitmap_scan_and_flip (pool->used_map, 0, page_cnt, false);
   lock_release (&pool->lock);
 
   if (page_idx != BITMAP_ERROR)
     pages = pool->base + PGSIZE * page_idx;
-  else
+  else{
     pages = NULL;
+  }
 
   if (pages != NULL)
     {

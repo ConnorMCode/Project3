@@ -13,7 +13,7 @@
 #include "vm/swap.h"
 #include "lib/kernel/list.h"
 
-#define MAX_FRAMES 1024
+#define MAX_FRAMES 2048
 
 static struct frame_entry frame_table[MAX_FRAMES];
 static size_t frame_count = 0;

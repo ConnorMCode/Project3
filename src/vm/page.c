@@ -8,7 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define STACK_MAX (1024 * 1024)
+#define STACK_MAX (4 * 1024 * 1024)
 
 void page_table_init(struct thread *t){
   list_init(&t->page_table);
@@ -53,7 +53,7 @@ struct page_entry *page_lookup(const void *addr){
 bool page_in(void *fault_addr, bool write){
   struct thread *t = thread_current();
   void *upage = pg_round_down(fault_addr);
-
+  
   // Find the page in the thread's page list
   struct page_entry *p = page_lookup(fault_addr);
 
@@ -148,7 +148,8 @@ bool page_relevant(struct page_entry *p){
 struct page_entry *page_allocate(void *uaddr, bool writable){
   struct thread *t = thread_current();
   struct page_entry *p = palloc_get_page(PAL_ZERO);
-
+  //struct page_entry *p = malloc(sizeof(struct page_entry));
+  
   if(p != NULL){
     p->upage = pg_round_down(uaddr);
     p->writable = writable;
@@ -183,6 +184,7 @@ void page_deallocate(void *uaddr){
   }
   list_remove(&p->page_elem);
   palloc_free_page(p);
+  //free(p);
 }
 
 bool page_lock(const void *uaddr, bool write){
