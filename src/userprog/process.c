@@ -405,8 +405,6 @@ bool load (struct cmdline_args *args, void (**eip) (void), void **esp)
   success = true;
 
 done:
-  /* We arrive here whether the load is successful or not. */
-  /*file_close (file);
   if (success)
     {
       file_deny_write (file);
@@ -416,7 +414,7 @@ done:
     {
       file_close (file);
       t->executable = NULL;
-      }*/
+      }
   return success;
 }
 
